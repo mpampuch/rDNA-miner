@@ -15,7 +15,14 @@ dependencies = [
     "biopython>=1.79",
     "pandas>=1.3",
     "typer>=0.7",
-    "numpy>=1.21"
+    "numpy>=1.21",
+    "psutil",
+    "rich",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
 ]
 
 [project.urls]
@@ -26,3 +33,7 @@ rdna-miner = "rdna_miner.cli:app"
 
 [tool.setuptools.package-data]
 rdna_miner = ["steps/taxonomy_decipher/*.R"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -29,7 +29,8 @@ def run(ctx):
     if ctx.artifact_exists_or_skip("rdna_reads"):
         return
 
-    input_fasta = ctx.require("input_fasta")
+    # fasta is the converted FASTA. input_fasta is the original file, which may be FASTQ.
+    input_fasta = ctx.require("fasta")
     bac = ctx.require("barrnap_bac")
     euk = ctx.require("barrnap_euk")
  

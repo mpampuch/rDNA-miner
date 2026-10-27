@@ -1,7 +1,9 @@
 import subprocess
 
+from rdna_miner.utils.logging_utils import info
+
 def run_command(command: str, log_file=None):
-    print(f"Running: {command}")
+    info(f"Running: {command}")
 
     result = subprocess.run(
         command,

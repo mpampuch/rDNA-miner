@@ -1,3 +1,5 @@
+LOCAL_TEST_DATA/
+
 # python bytecode
 __pycache__/
 *.py[cod]
@@ -19,6 +21,7 @@ venv/
 # OS and editor junk
 .DS_Store
 .vscode/
+.cursorignore
 *.swp
 *.swo
 
@@ -35,3 +38,17 @@ coverage.xml
 # misc
 *.out
 *.tmp
+
+# Benchmark artifacts: synthetic datasets and the local results log
+# (benchmark_log.tsv contains machine-specific paths, so it is generated
+# per machine rather than tracked). benchmark_hr_log.tsv is the same log
+# with byte columns scaled for reading.
+benchmarks/data/
+benchmarks/benchmark_log.tsv
+benchmarks/benchmark_hr_log.tsv
+
+# Local sequencing-read datasets; real read data is far too large to track
+# and test fixtures live under tests/ instead
+*reads*.tsv
+*reads*.fasta
+*reads*.fastq

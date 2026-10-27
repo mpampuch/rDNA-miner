@@ -18,5 +18,11 @@ def run(ctx):
     input_fasta = ctx.require("combined_SSU")
     threads = ctx.threads
 
-    run_command(f"Rscript {decipher_script} {input_fasta} pr2 {pr2_db} {silva_db} {out_dir} --threads {threads}")
+    # PR2 keeps eukaryotic and organelle lineages. SILVA keeps bacteria and archaea.
+    # compile_taxonomy picks one row per sequence after both calls finish.
+    for database in ("pr2", "silva"):
+        run_command(
+            f"Rscript {decipher_script} {input_fasta} {database} "
+            f"{pr2_db} {silva_db} {out_dir} --threads {threads}"
+        )
     ctx.register("taxonomy", taxonomy_file)

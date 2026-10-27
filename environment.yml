@@ -14,9 +14,11 @@ dependencies:
   - numpy
   - matplotlib
   - gdown
+  - psutil
 
   # bioinf
-  - barrnap
+  # 0.9 still has --kingdom euk and --reject. bioconda 1.10.x removed both.
+  - barrnap=0.9
   - flye
   - minimap2
   - samtools

@@ -3,7 +3,9 @@ from pathlib import Path
 
 from rdna_miner.workflow.context import Context
 from rdna_miner.utils.db import DatabaseManager
-from rdna_miner.utils.logging_utils import section, info, warn
+from rdna_miner.utils.logging_utils import (
+    section, info, warn, console, enable_run_log, close_run_log,
+)
 import platform
 import datetime
 
@@ -16,15 +18,23 @@ def print_header(start_time):
     width = 70
     v = version("rdna-miner")
 
-    print()
-    print("=" * width)
-    print("rDNA-miner".center(width))
-    print(f"version {v}".center(width))
-    print("Extract, assemble, and classify rDNA from long reads".center(width))
-    print("=" * width)
-    print(f"Run started: {start_time.isoformat(timespec='seconds')}")
-    print(f"Python: {platform.python_version()}")
-    print("=" * width)
+    console.print()
+    console.print("=" * width)
+    console.print("rDNA-miner".center(width))
+    console.print(f"version {v}".center(width))
+    console.print("Extract, assemble, and classify rDNA from long reads".center(width))
+    console.print("=" * width)
+    console.print(f"Run started: {start_time.isoformat(timespec='seconds')}")
+    console.print(f"Python: {platform.python_version()}")
+    console.print("=" * width)
+
+def print_finished(start_time):
+    end_time = datetime.datetime.now()
+    duration = end_time - start_time
+    console.print("-" * 70)
+    console.print(f"Finished: {end_time.isoformat(timespec='seconds')}")
+    console.print(f"Total runtime: {format_timedelta(duration)}")
+    console.print("-" * 70)
 
 def format_timedelta(td: "datetime.timedelta") -> str:
     total_seconds = td.total_seconds()
@@ -63,16 +73,30 @@ def run(
     Extracts rDNA reads, assembles them, and performs taxonomic classification.
     """
     start_time = datetime.datetime.now()
+    enable_run_log(output_dir / "rdna-miner.log")
+    try:
+        _run_long_read(
+            start_time, input_fasta, output_dir, db_dir,
+            rfam_db, pr2_db, silva_db, threads, platform, force,
+        )
+    finally:
+        close_run_log()
+
+
+def _run_long_read(
+    start_time, input_fasta, output_dir, db_dir,
+    rfam_db, pr2_db, silva_db, threads, seq_platform, force,
+):
     print_header(start_time)
 
     info("loading packages")
 
     # Initialize context
-    ctx = Context(input_fasta, output_dir, force=force)
+    ctx = Context(input_fasta, output_dir, force=force, script_name="long-read")
 
     # Attach runtime configuration
     ctx.threads = threads
-    ctx.platform = platform
+    ctx.platform = seq_platform
 
     # Setup DatabaseManager with defaults and optional per-db overrides
     ctx.db_manager = DatabaseManager(cli_db_dir=db_dir)
@@ -85,14 +109,8 @@ def run(
     
     pipeline = build_long_read_pipeline()
     run_pipeline(ctx, pipeline)
-    
-    end_time = datetime.datetime.now()
-    duration = end_time - start_time
 
-    print("-" * 70)
-    print(f"Finished: {end_time.isoformat(timespec='seconds')}")
-    print(f"Total runtime: {format_timedelta(duration)}")
-    print("-" * 70)
+    print_finished(start_time)
 
 #---------------------------------#
 
@@ -112,9 +130,23 @@ def assembly(
     """
 
     start_time = datetime.datetime.now()
+    enable_run_log(output_dir / "rdna-miner.log")
+    try:
+        _run_assembly(
+            start_time, assembly_fasta, output_dir, db_dir,
+            rfam_db, pr2_db, silva_db, threads, force,
+        )
+    finally:
+        close_run_log()
+
+
+def _run_assembly(
+    start_time, assembly_fasta, output_dir, db_dir,
+    rfam_db, pr2_db, silva_db, threads, force,
+):
     print_header(start_time)
 
-    ctx = Context(assembly_fasta, output_dir, force=force)
+    ctx = Context(assembly_fasta, output_dir, force=force, script_name="assembly")
     ctx.threads = threads
     ctx.register("assembly", assembly_fasta)
 
@@ -132,13 +164,7 @@ def assembly(
     pipeline = build_assembly_pipeline()
     run_pipeline(ctx, pipeline)
 
-    end_time = datetime.datetime.now()
-    duration = end_time - start_time
-
-    print("-" * 70)
-    print(f"Finished: {end_time.isoformat(timespec='seconds')}")
-    print(f"Total runtime: {format_timedelta(duration)}")
-    print("-" * 70)
+    print_finished(start_time)
 
 #-----------------------------------
 # manage databses
@@ -154,9 +180,17 @@ def db_install(
     force: bool = typer.Option(False, "--force", help="Force re-download")):
 
     start_time = datetime.datetime.now()
-    print_header(start_time)
-
     manager = DatabaseManager(cli_db_dir=db_dir)
+    enable_run_log(manager.base_dir / "rdna-miner.log")
+    try:
+        print_header(start_time)
+        _install_databases(manager, db, force)
+        print_finished(start_time)
+    finally:
+        close_run_log()
+
+
+def _install_databases(manager, db, force):
     section("Database installation")
 
     if db == "all":
@@ -166,14 +200,6 @@ def db_install(
     else:
         section(f"Installing {db}")
         manager.install(db, force=force)
-    
-    end_time = datetime.datetime.now()
-    duration = end_time - start_time
-
-    print("-" * 70)
-    print(f"Finished: {end_time.isoformat(timespec='seconds')}")
-    print(f"Total runtime: {format_timedelta(duration)}")
-    print("-" * 70)
 
 
 @db_app.command("status")
@@ -181,6 +207,14 @@ def db_status(
     db_dir: Path = typer.Option(None, "--db-dir", "-d", help="Database directory override")):
 
     manager = DatabaseManager(cli_db_dir=db_dir)
+    enable_run_log(manager.base_dir / "rdna-miner.log")
+    try:
+        _print_db_status(manager)
+    finally:
+        close_run_log()
+
+
+def _print_db_status(manager):
     section("Database status")
     status = manager.status()
 

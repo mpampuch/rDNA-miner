@@ -1,13 +1,20 @@
 from pathlib import Path
 from typing import Dict, Union, List
 import logging
-from rdna_miner.utils.logging_utils import section, info, warn
+from rdna_miner.utils.logging_utils import section, info, console
 
 from rdna_miner.utils.fasta import load_fasta_or_convert
 
 ArtifactType = Union[Path, List[Path]]
 
 class Context:
+    """Holds input/output paths, artifacts, and the per-run benchmark log.
+
+    script_name is written on every benchmark row so long-read and assembly
+    runs can be told apart in the same TSV.
+    """
+
+    script_name = None
 
     SUBDIRS = {
         "summary": "summary",
@@ -18,27 +25,45 @@ class Context:
         "figures": "figures"
     }
 
-    def __init__(self, input_file: Path, output_dir: Path, force: bool = False):
+    def __init__(
+        self,
+        input_file: Path,
+        output_dir: Path,
+        force: bool = False,
+        script_name: str | None = None,
+    ):
         self.input_file = Path(input_file)
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.force = force
+        self.script_name = script_name
         self.artifacts: Dict[str, object] = {}  # Now can store any object
 
         self.logger = logging.getLogger("rdna-miner")
-        if not self.logger.handlers:
-            logging.basicConfig(
-                level=logging.INFO,
-                format="%(asctime)s | %(levelname)s | %(message)s"
-            )
 
-        # Create canonical fasta
-        self.fasta = load_fasta_or_convert(self.input_file, self.output_dir)
+        # Timed because converting a large FASTQ can take minutes and would
+        # otherwise be an unexplained gap before the first pipeline step.
+        with self.benchmark_timer("fasta_convert", input_file=self.input_file):
+            self.fasta = load_fasta_or_convert(self.input_file, self.output_dir)
         self.register("fasta", self.fasta)
 
         # Register original input fasta
         self.register("input_fasta", self.input_file)
+
+    @property
+    def benchmark_dir(self) -> Path:
+        """Per-run benchmark log location: {output_dir}/benchmarking/."""
+        d = self.output_dir / "benchmarking"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def benchmark_timer(self, label, **kwargs):
+        from rdna_miner.utils.benchmark import BenchmarkTimer
+        kwargs.setdefault("log_dir", str(self.benchmark_dir))
+        if self.script_name and "script_name" not in kwargs:
+            kwargs["script_name"] = self.script_name
+        return BenchmarkTimer(label=label, **kwargs)
 
     # ---------------- Artifact Registration ----------------
 
@@ -131,12 +156,12 @@ class Context:
 
     def report_artifacts(self):
         """Print a nicely formatted summary of all registered artifacts."""
-        print("\n" + "-" * 70)
-        print("Generated output:")
+        console.print()
+        console.rule("Generated output", align="left", style="Dim")
         for name, path in self.artifacts.items():
             if isinstance(path, list):
-                print(f"  {name}:")
+                info(f"{name}:")
                 for p in path:
-                    print(f"    - {p}")
+                    info(f"- {p}")
             else:
-                print(f"  {name}: {path}")
+                info(f"{name}: {path}")
